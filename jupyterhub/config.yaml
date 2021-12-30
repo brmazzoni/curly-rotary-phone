@@ -4,8 +4,8 @@ singleuser:
     # https://hub.docker.com/r/jupyter/datascience-notebook/tags/
     # Inspect the Dockerfile at:
     # https://github.com/jupyter/docker-stacks/tree/HEAD/datascience-notebook/Dockerfile
-    name: jupyter/datascience-notebook
+    name: jupyter/tensorflow-notebook
     tag: latest
   memory:
-    limit: 0.5G
-    guarantee: 0.5G
+    limit: 250M
+    guarantee: 200M
