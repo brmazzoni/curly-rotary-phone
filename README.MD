@@ -83,19 +83,99 @@ Findings:
 - DigitalOcean creates a Kubernetes cluster in a given region. All nodes in the cluster will be located in the same computing infrastructure. By default, this does not easily allow to "scale geographically"
 - It is possible to use a port forwarding service to access the application without serving it over http.
 - Kubeflow does not have a "DigitalOcean distribution" yet. A manifests repository is available and allows "1 command line" full installation, but documentation is not that clear and it can be challenging to reach operational status.
+- Terraform will not allow spinning up a kubernetes cluster pool on the most basic droplets
+- Jupyterhub notebooks request 1G of memory by default, so unless you selected a large RAM pool size, you need to specify lower memory requests and limits in the config.yaml for jupyterhub.
 
 
 
 Open issues:
 - Is port forwarding an acceptable option to access the tools in production for the use case?
-- 
+- Problems with mounting volumes on stop and restart of a jupyterhub server
 
 
 
 
 ---------
 
-REBOOT - Automating GitOps and Continuous Delivery with DOKS based implementation
+## REBOOT - Automating GitOps and Continuous Delivery with DOKS based implementation
 
-Create github repo
-create clusters/dev folder
+### Prerequisites:
+- Create github repo
+- create clusters/dev folder
+- commit and push the readme
+- generate a token in github with repo access (Account settings > developer > token)
+- set up doctl with a digital ocean token (already done in starter)
+- Create a digital ocean Space
+- Generate a space access key from the API menu in digital ocean
+- Export the key and secret as environmental variables
+- install required tools (git, doctl, kubectl, flux, terraform, kubeseal)... all brew install(able)
+    - install flux: brew install fluxcd/tap/flux
+
+### Init Terraform Backend
+- create config/terraform/backend.tf (copy the template in DOKS starter kit 15>assets>terraform)
+- change the region in the digital ocean url; name; to reflect the one where the space was created
+- no need to change the "region" parameter
+- key: terraform.tfstate
+- Then get the main.tf file and populate it with your github, do parameters and cluster name and config (see slugs.do-api.dev)
+- in terraform directory, run terraform init  --backend-config="access_key=$DO_SPACES_ACCESS_KEY" --backend-config="secret_key=$DO_SPACES_SECRET_KEY"
+
+### bootstraping DOKS and flux cd
+- terraform plan -out starter_kit_flux_cluster.out
+- terraform apply "starter_kit_flux_cluster.out"
+- after the cluster is created, check the space contains the tfstate file
+- check access to cluster by running: doctl k8s clsuter list
+- savec kubecongig: doctl k8s cluster kubeconfig save curly-rotary-cluster
+- kubectl config get-contexts
+- kubectl get nodes
+- kubectl get pods -A
+- kubectl get ns
+- kubectl get all -n flux-system
+
+### Flux CD
+- flux check
+- flux get all
+- kubectl get gitrepositories.source.toolkit.fluxcd.io -n flux-system
+
+- pull the changes from terraform to your repo: git pull origin
+- create clusters/dev/helm/repositories, clusters/dev/helm/secrets and clusters/dev/flux-system/helm/releases
+- export FLUXCD_HELM_MANIFESTS_PATH="[...]/curly-rotary-phone/clusters/dev/helm"
+- run:
+
+flux create source helm sealed-secrets \
+  --url="https://bitnami-labs.github.io/sealed-secrets" \
+  --interval="10m" \
+  --export > "${FLUXCD_HELM_MANIFESTS_PATH}/repositories/sealed-secrets.yaml"
+
+- run:
+
+SEALED_SECRETS_CHART_VERSION="1.16.1"
+
+curl "https://raw.githubusercontent.com/digitalocean/Kubernetes-Starter-Kit-Developers/main/08-kubernetes-sealed-secrets/assets/manifests/sealed-secrets-values-v${SEALED_SECRETS_CHART_VERSION}.yaml" > "sealed-secrets-values-v${SEALED_SECRETS_CHART_VERSION}.yaml"
+
+- run:
+
+SEALED_SECRETS_CHART_VERSION="1.16.1"
+
+flux create helmrelease "sealed-secrets-controller" \
+  --release-name="sealed-secrets-controller" \
+  --source="HelmRepository/sealed-secrets" \
+  --chart="sealed-secrets" \
+  --chart-version "$SEALED_SECRETS_CHART_VERSION" \
+  --values="sealed-secrets-values-v${SEALED_SECRETS_CHART_VERSION}.yaml" \
+  --target-namespace="flux-system" \
+  --crds=CreateReplace \
+  --export > "${FLUXCD_HELM_MANIFESTS_PATH}/releases/sealed-secrets-v${SEALED_SECRETS_CHART_VERSION}.yaml"
+
+
+- commit the manifests
+- flux reconcile source git flux-system
+- flux get helmrelease sealed-secrets-controller
+
+
+
+----
+
+Utilities
+
+- kubctl deploy -f utils.yaml
+- kubectl exec utilities-..... -it -- /bin/sh

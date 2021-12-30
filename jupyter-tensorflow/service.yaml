@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jupyter-lb
+spec:
+  selector:
+    app: jupyter-tensorflow
+  ports:
+    - port: 8888
+      targetPort: 8888
+  type: LoadBalancer
