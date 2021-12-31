@@ -101,7 +101,7 @@ helm upgrade --cleanup-on-fail \
   --values config.yaml
 ```
 
-Note: replace the chart version with the appropriate one from https://jupyterhub.github.io/helm-chart/ (currently latest is 1.2.0)
+**Note**: replace the chart version with the appropriate one from https://jupyterhub.github.io/helm-chart/ (currently latest is 1.2.0)
 
 
 The Jupyterhub releases gives you out of the box the following feature:
@@ -156,6 +156,7 @@ This project provides 2 notebooks with a basic ML experiment in the "notebooks" 
 - drag and drop the notebooks files (.ipynb) to the notebook server's file browser (on the left of the user interface)
 - or open a terminal in the notebook, and use git to clone the repository inside the notebook.
 
+Then:
 - double click on the first notebook (0_prepare.ipynb). 
 - Wait a few second to give time to the kernel to start (you will see a grey dot on the tab when the kernel is running)
 - Then click on the Run dropdown menu and select "Run all cells"
@@ -182,15 +183,15 @@ Cost (monthly, 0 user - 10 users):
 - 2 CPU 2GB AMD/Intel: 58$ -> 238$
 - 4 CPU 4GB AMD: 88$ -> 568$
 
-(Note that the Load Balancer and the Volumes are billed separately)
+**Note**: the Load Balancer and the Volumes are billed separately.
 
 Using AMD premium dual CPUs with 2GB RAM droplets for my cluster seems to be a sweet spot in terms of performance/cost ratio.
 
-Note: when updating the node sizes, it will be necessary to destroy the old cluster and create a new one, so the jupyterlab release installation will be lost. I recommend to use the Digital Ocean GUI to destroy existing cluster because it will provide the option to destroy all linked resources (Loar balancer, and volumes). ```terraform destroy``` will leave the Load Balancer and Volumes hanging because at the moment it does not know about the jupyterhub installation.
+**Note**: when updating the node sizes, it will be necessary to destroy the old cluster and create a new one, so the jupyterlab release installation will be lost. I recommend to use the Digital Ocean GUI to destroy existing cluster because it will provide the option to destroy all linked resources (Loar balancer, and volumes). ```terraform destroy``` will leave the Load Balancer and Volumes hanging because at the moment it does not know about the jupyterhub installation.
 
 ### Adjust the perf specs
 
-The "Scaling a school" tech talk on Digital Ocean Youtube channel describes a similar tech stack. One recommendation from the speaker: use small nodes that handle 1 user only so the cluster can scale down when the user is offline, so I configured the memory limits for 1 user to 1.4G (600M are used by other services running on each pods).
+The "Scaling a school" tech talk on Digital Ocean Youtube channel describes a similar tech stack. One recommendation from the speaker is to use small nodes that handle 1 user only so the cluster can scale down when the user is offline, so I configured the memory limits for 1 user to 1.4G (600M are used by other services running on each pods).
 
 To reconfigure the performance specs for each user, open the config.yaml in jupyterlab folder, and change the limit and guarantee value with the desired one, then just rerun the helm installation command to apply it.
 
@@ -229,7 +230,7 @@ My initial idea was to setup a few micro-services hosted on DOKS to support a ML
 Jupyter notebook are a core component of many ML system. I then used jupyterlab that has a one liner installation process as well as extensive documentation for kubernetes deployment. 
 I later found out that this stack was already the subject of a Digital Ocean talk ("Scaling a school"), exposing interesting findings for a very similar use case as mine.
 
-Steps and Achievements:
+### Steps and Achievements
 
 - Spin up a Kubernetes Cluster on DigitalOcean and deploy a first application. I tried different methods: 
     - doctl vs terraform to kick the cluster off
@@ -259,7 +260,7 @@ At this point I could not find an easy way to spin up jupyterlab servers, had so
 
 
 
-**Findings**:
+## Findings
 - DigitalOcean creates a Kubernetes cluster in a given region. All nodes in the cluster will be located in the same computing infrastructure. By default, this does not easily allow to "scale geographically".
 - Horizontal pod autoscaling was most easy to set up with this tech stack thanks to the integration in Jupyterlab. However Vertical scaling needs to destroy and recreate a new cluster.
 - It is possible to use a port forwarding service to access the application without serving it over http, however, I could not assess performances of this solution.
@@ -269,13 +270,13 @@ At this point I could not find an easy way to spin up jupyterlab servers, had so
 
 
 
-### Open issues
+## Open issues
 
 - Is port forwarding an acceptable option to access the tools in production for the use case?
 - When spawning a jupyterlab server, the corresponding pod is sometimes too long to come up, so the connection times out (but the server can quickly spawn shortly after, when the pod is still available)
 - After a cluster is destroyed, is it possible to reuse user authentication and persistent data with a new instance of the cluster? Would allow easier vertical scaling.
 
-### Next steps
+## Next steps
 
 - setup https
 - customize the jupyterlab image to make it smaller (starts up faster)
