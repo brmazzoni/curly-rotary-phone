@@ -6,7 +6,7 @@ Jupyter notebook are a core component of many ML system. I used jupyterlab proje
 I ran a small number of benchmarks on a few of the basic droplet sizes available in order to get an idea of the gain of performance when manually scaling up the nodes. 
 I finally experienced with the pool size configurations and the helm config file for jupyterlab to better exploit the autoscaling feature. 
 I obtained best results using 2GB memory nodes size and configure the user memory limits to 1.4G.
-Regarding CPU, AMD premium CPUs perform noticeably better than Intel ones for my ML application.
+Regarding CPU, AMD premium CPUs perform noticeably better than Intel ones for my ML application and dual CPU provides a considerable gain over single CPU.
 
 
 ## Step-by-step description of the final setup:
@@ -19,33 +19,49 @@ For this setup we use the following tools:
 - terraform
 - helm
 
-all of which can be installed with "brew install <package>" if you are running macos and installed homebrew.
+all of which can be installed with "brew install *package*" if you are running macos and installed homebrew.
 
 ### Use terraform to create a DOKS cluster
 
 - Create a DO_TOKEN for terraform from Digital Ocean's account API menu
-- (for macos) Add export DO_TOKEN="<token>" to the .zprofile (or other prefered method to create environmental variable), and restart the terminal
+- (for macos) Add ```export DO_TOKEN="<copy your token here>"``` to the .zprofile (or other prefered method to create environmental variable), and restart the terminal
 - cd in the "terraform" folder of the project
 - edit the cluster.tf file in the project, change cluster name, region as per your preferences
 - edit node pool size depending on needs of the project (I recommend a minimum of 1 to allow economic downscale when the ML system is not being used, and a maximum corresponding to your expected maximum number of simltaneous users + 1 + margin)
 - run the following commands:
-- terraform init
-- terraform plan -var do_token=$DO_TOKEN
-- terraform apply -var do_token=$DO_TOKEN
+```
+terraform init
+```
+```
+terraform plan -var do_token=$DO_TOKEN
+```
+```
+terraform apply -var do_token=$DO_TOKEN
+```
 - type yes to confirm
 - when the cluster is up, type the following command to enable kubectl:
-- doctl kubernetes cluster kubeconfig save <cluster-id>
+```
+doctl kubernetes cluster kubeconfig save <your_cluster_id>
+```
 
 Check the installation:
-- kubectl get nodes
+```
+kubectl get nodes
+```
 - you should see 1 pod running (or the minimum number you specified)
-- kubectl get pods -A
+```
+kubectl get pods -A
+```
+- You should see all the pods running on your cluster.
 
 ### Use helm to install JupyterLab
 
-Resources:
+**Resources**:
+
 https://zero-to-jupyterhub.readthedocs.io/en/latest/index.html
+
 https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html
+
 https://jupyter-docker-stacks.readthedocs.io/en/latest/_images/inherit.svg
 
 - type the following commands:
@@ -121,6 +137,18 @@ You should see something like this:
 ```
 jupyter-madscientist1             0/1     PodInitializing   0          3m44s
 ```
+
+At any given moment, you can check if more nodes are created with:
+```
+kubectl get nodes
+```
+
+And you can check which pods are running (which users are connected with a running server):
+```
+kubectl get pods -n jhub
+```
+
+After users log out, their server will automatically shut down (after a timeout), and eventually, the unused nodes will be automatically terminated (auto-downscale).
 
 ### Deploy the ML experiment
 
