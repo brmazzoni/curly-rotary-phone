@@ -1,181 +1,257 @@
-Curly Rotary Phone - A ML System Experiment for the DigitalOcean Kubernetes Challenge 2021
+# Curly Rotary Phone - A ML System Experiment for the DigitalOcean Kubernetes Challenge 2021
 
-Abstract: TODO
+## Abstract
 
-Objectives: the goal of this experiment is to learn how Kubernetes, and DigitalOcean managed Kubernetes could (or could not) be used to support a scalable machine learning and data management system.
+Jupyter notebook are a core component of many ML system. I used jupyterlab project that has a one liner installation process as well as extensive documentation for kubernetes deployment. 
+I ran a small number of benchmarks on a few of the basic droplet sizes available in order to get an idea of the gain of performance when manually scaling up the nodes. 
+I finally experienced with the pool size configurations and the helm config file for jupyterlab to better exploit the autoscaling feature. 
+I obtained best results using 2GB memory nodes size and configure the user memory limits to 1.4G.
+Regarding CPU, AMD premium CPUs perform noticeably better than Intel ones for my ML application.
 
-Use case: the applied use case is a world-wide B2B organization scope meaning that:
+
+## Step-by-step description of the final setup:
+
+### Prerequisites
+
+For this setup we use the following tools:
+- doctl
+- kubectl
+- terraform
+- helm
+
+all of which can be installed with "brew install <package>" if you are running macos and installed homebrew.
+
+### Use terraform to create a DOKS cluster
+
+- Create a DO_TOKEN for terraform from Digital Ocean's account API menu
+- (for macos) Add export DO_TOKEN="<token>" to the .zprofile (or other prefered method to create environmental variable), and restart the terminal
+- cd in the "terraform" folder of the project
+- edit the cluster.tf file in the project, change cluster name, region as per your preferences
+- edit node pool size depending on needs of the project (I recommend a minimum of 1 to allow economic downscale when the ML system is not being used, and a maximum corresponding to your expected maximum number of simltaneous users + 1 + margin)
+- run the following commands:
+- terraform init
+- terraform plan -var do_token=$DO_TOKEN
+- terraform apply -var do_token=$DO_TOKEN
+- type yes to confirm
+- when the cluster is up, type the following command to enable kubectl:
+- doctl kubernetes cluster kubeconfig save <cluster-id>
+
+Check the installation:
+- kubectl get nodes
+- you should see 1 pod running (or the minimum number you specified)
+- kubectl get pods -A
+
+### Use helm to install JupyterLab
+
+Resources:
+https://zero-to-jupyterhub.readthedocs.io/en/latest/index.html
+https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html
+https://jupyter-docker-stacks.readthedocs.io/en/latest/_images/inherit.svg
+
+- type the following commands:
+
+```
+helm repo add jupyterhub https://jupyterhub.github.io/helm-chart/
+```
+
+```
+helm repo update
+```
+
+cd in the jupyterhub folder of the repository and edit the config.yaml file, customize it for:
+- image (I use one with tensorflow to run the ML experiment, but other images are available, see links above)
+- resources (I recommend limiting the memory to your node memory size minus 600M to 1G to leave some space for other services sharing the node)
+
+The config file is quite minimalistic:
+```
+singleuser:
+  image:
+    # You should replace the image and the "latest" tag with a fixed version from:
+    # https://hub.docker.com/r/jupyter/
+    name: jupyter/tensorflow-notebook
+    tag: latest
+  memory:
+    limit: 1.4G
+    guarantee: 1G
+```
+
+Enter the follwing command in your terminal (you can copy/paste):
+```
+helm upgrade --cleanup-on-fail \
+  --install jupyterhub jupyterhub/jupyterhub \
+  --namespace jhub \
+  --create-namespace \
+  --version=1.2.0 \
+  --values config.yaml
+```
+
+Note: replace the chart version with the appropriate one from https://jupyterhub.github.io/helm-chart/ (currently latest is 1.2.0)
+
+
+The Jupyterhub releases gives you out of the box the following feature:
+- A linked Digital Ocean Load balancer to expose the app to the internet
+- Automatic horizontal pod scaling
+- User registration and authentication
+- Linked Digital Ocean Volumes to store user's data (a volume is created each time a user is created)
+- creates a namespace for the app (make sure to use ```-n jhub``` in your kubectl commands)
+
+In order to connect to the app, let's inspect the cluster services to figure out the public ip:
+```
+kubectl get svc -n jhub
+```
+- you should see a LoadBalancer service named "proxy-public", and a  EXTERNAL-IP listed. Copy the IP.
+- if the EXTERNAL-IP is <pending>, just wait a couple of minutes and try again... the service takes a little while to come up.
+
+From a browser, access the IP and you should land on a connection page. 
+- At the moment, no user is created, but you just have to type a user name and a password to have one created. Jupyterhub will then "Spawn a server" (i.e. create a pod in the DOKS cluster from the image you selected in the jupyterhub release). This step may take up to 10 minutes, and may trigger autoscale (creation of a new node). 
+- The server spawning may fail, just click the jupyterhub logo to try again (and this time it should not fail anymore becasue the new node is ready)
+
+If the autoscale is triggered, you should see something like this in your browser:
+```
+trigger scale up:
+021-12-30T12:16:56Z [Normal] pod triggered scale-up: [{7333a9d6-8796-45e6-b96d-a5d6ec2a89fe 1->2 (max: 5)}]
+```
+
+In the meantime, you could monitor your new pod coming up:
+```
+kubectl get po -n jhub
+```
+
+You should see something like this:
+```
+jupyter-madscientist1             0/1     PodInitializing   0          3m44s
+```
+
+### Deploy the ML experiment
+
+This project provides 2 notebooks with a basic ML experiment in the "notebooks" folder. To deploy it to your server, you could either:
+- drag and drop the notebooks files (.ipynb) to the notebook server's file browser (on the left of the user interface)
+- or open a terminal in the notebook, and use git to clone the repository inside the notebook.
+
+- double click on the first notebook (0_prepare.ipynb). 
+- Wait a few second to give time to the kernel to start (you will see a grey dot on the tab when the kernel is running)
+- Then click on the Run dropdown menu and select "Run all cells"
+
+This notebook will just download a dataset from the NASA website and perform a few data preparation steps.
+
+- double click on the second notebook (1_ML.ipynb) and give it some time for the kernel to start
+- Select Run > Run All Cells, or run the cells one by one (you could use Shift+Enter) to inspect the ouput of the ML workflow
+
+This second notebook will configure and train a Deep Neural Network and run train it to guess remaining useful life of some turbofan engines based on a series of sensor measurements (spoiler: as configured now, it doesn't work very well).
+
+
+### Mini-Benchmark
+
+The ML model training runs with the following performance on different droplet setups:
+- s-1vcpu-2gb-amd -> 83 seconds
+- s-2vcpu-2gb-intel -> 83 seconds...
+- s-2vcpu-2gb-amd -> 60 seconds!
+- c-2 -> 57 seconds
+- s-4vcpu-8gb-amd -> 53 seconds
+
+Cost (monthly, 0 user - 10 users):
+- 1 CPU 2GB AMD: 52$ -> 120$
+- 2 CPU 2GB AMD/Intel: 58$ -> 238$
+- 4 CPU 4GB AMD: 88$ -> 568$
+
+(Note that the Load Balancer and the Volumes are billed separately)
+
+Using AMD premium dual CPUs with 2GB RAM droplets for my cluster seems to be a sweet spot in terms of performance/cost ratio.
+
+Note: when updating the node sizes, it will be necessary to destroy the old cluster and create a new one, so the jupyterlab release installation will be lost. I recommend to use the Digital Ocean GUI to destroy existing cluster because it will provide the option to destroy all linked resources (Loar balancer, and volumes). ```terraform destroy``` will leave the Load Balancer and Volumes hanging because at the moment it does not know about the jupyterhub installation.
+
+### Adjust the perf specs
+
+The "Scaling a school" tech talk on Digital Ocean Youtube channel describes a similar tech stack. One recommendation from the speaker: use small nodes that handle 1 user only so the cluster can scale down when the user is offline, so I configured the memory limits for 1 user to 1.4G (600M are used by other services running on each pods).
+
+To reconfigure the performance specs for each user, open the config.yaml in jupyterlab folder, and change the limit and guarantee value with the desired one, then just rerun the helm installation command to apply it.
+
+To have a global view of the performance, inspect the nodes running in your cluster using the following command:
+```
+kubectl describe pod <pod-name>
+```
+
+You will be able to consult a list of resources requests and limit and easily notice if the resources are overcommitted.
+
+
+## More about the kubernetes experience
+
+Below is a description of other attempts and findings in the Kubernetes Challenge.
+
+**Objectives**: the goal of this experiment is to learn how Kubernetes, and DigitalOcean managed Kubernetes could (or could not) be used to support a scalable machine learning and data management system.
+
+**Use case**: the applied use case is a world-wide B2B organization scope or academic lab, so:
 - It is assumed that the traffic will not be extensive: 
-    - A few hundreads to thousands of user
+    - A few hundreads to thousands of user maximum
     - Up to 1 or 2 hundreads simultaneous connections
 - It is assumed that the ML tasks will be demanding in terms of CPU and GPU.
 - It is required to have good bandwidth performance in order to access the assets in a fluid way from different world-wide locations
 
-Questions:
+**Questions**:
 - Is it possible to easily "scale geographically" using DigitalOcean managed Kubernetes (meaning serve assets from a cluster node situaded in different geographic locations depending on where the user is localized to maximize performance)?
 - Is it possible to easily scale the computing infrastructure depding on computing performance needs for ML tasks?
     - CPU resources?
     - GPU/TPU resources?
     - What is the impact to cost?
-- Is it possible to easily interface on-prem storage solution for archival of data?
 - Are Load Balancer Services a good solution for this use case? if not, what are the alternatives?
-- 
 
+### Summary of the other experiments:
+
+My initial idea was to setup a few micro-services hosted on DOKS to support a ML application. I first experimented with a Kubeflow deployment, but it is highly customizable using the manifests provided by the kubeflow project, it did not work out of the box for me and I had a hard time to find a simple wayforward. 
+Jupyter notebook are a core component of many ML system. I then used jupyterlab that has a one liner installation process as well as extensive documentation for kubernetes deployment. 
+I later found out that this stack was already the subject of a Digital Ocean talk ("Scaling a school"), exposing interesting findings for a very similar use case as mine.
 
 Steps and Achievements:
 
-1. spin up a Kubernetes Cluster on DigitalOcean and deploy a first application
-Note: this was done by following the "Getting Started with Digital Ocean Kubernetes". Summary of the steps:
-- Set up a basic Flask app that will print the hostname of the host machine:
-    - with main.py and requirements.txt (available in "starter" folder):
-        - tested locally the app:
-            python3 venv venv
-            source venv/bin/activate
-            pip install Flask
-            python main.py
+- Spin up a Kubernetes Cluster on DigitalOcean and deploy a first application. I tried different methods: 
+    - doctl vs terraform to kick the cluster off
+    - deploy an application from Digital Ocean container registry
 
-        - access http://localhost:8080 and check it displays the hostname
-
-- Built docker image using VSCode Docker Extension and a DockerFile (available in "starter" folder)
-    - for some reason, I could not access the app when running it through Docker Desktop, but decided to move forward
-- install doctl (on macos):
-    brew install doctl
-- Created a DigitalOcean image registry.
-- Pushed the image to the registry
-- used doctl to spin up a kubernetes cluster:
-    doctl kubernetes cluster create curlyrotarycluster
-- check the nodes are running:
-    kubectl get nodes
-- Give access to the repository from the cluster (in repository settings on digitalocean.com)
-- Using the deployment file (available in "starter" folder), deploy the pods on the cluster:
-    kubectl create -f deployment.yaml
-- check the pods are running:
-    kubectl get pods
-
-- Using the service file (available in "starter" folder), kick off a load balancer service to expose the app to the Internet:
-    kubectl create -f service.yaml
-- After a few minutes, access the service information including an external IP:
-    kubectl get services
-- Access the app, refresh and check that it is printing the hostname of different replicas (name of the containers)
-- Cleanup:
-    kubectl delete service py-service
-    kubectl delete deploy python-deployment
-
-Achievements: App was correctly running with 3 replicas. Load Balancer service granted access to the 3 different replicas. After the test was done, the 2 above commands allowed shuting down the app and Load Balancer
-
-2. Deploy Kubeflow on the cluster
-- clone kubeflow's manifests repo:
+- Deploy Kubeflow on the cluster
+    - clone kubeflow's manifests repo:
+    ```
     git clone https://github.com/kubeflow/manifests.git
+    ```
 - install kustomize (on macos):
+    ```
     brew install kustomize
+    ```
 - run the install command for kubeflow example (will install all available functions, will take a while):
+    ```
     while ! kustomize build example | kubectl apply -f -; do echo "Retrying to apply resources"; sleep 10; done
+    ```
 - OR alternatively follow the readme in kubeflow manifests repository to install a custom list of the needed microservices
 - Setup port forwarding to access the app (assuming istio service was installed in the case of a custom installation):
-    kubectl port-forward svc/istio-ingressgateway -n istio-system 8080:80
+```
+kubectl port-forward svc/istio-ingressgateway -n istio-system 8080:80
+```
 - Access the portal at http://localhost:8080, with default credentials provided in the kubeflow manifests repo's readme.
 
+At this point I could not find an easy way to spin up jupyterlab servers, had some problems with the secure cookies policy, so I changed my approach.
 
 
 
-
-Findings:
-- DigitalOcean creates a Kubernetes cluster in a given region. All nodes in the cluster will be located in the same computing infrastructure. By default, this does not easily allow to "scale geographically"
-- It is possible to use a port forwarding service to access the application without serving it over http.
+**Findings**:
+- DigitalOcean creates a Kubernetes cluster in a given region. All nodes in the cluster will be located in the same computing infrastructure. By default, this does not easily allow to "scale geographically".
+- Horizontal pod autoscaling was most easy to set up with this tech stack thanks to the integration in Jupyterlab. However Vertical scaling needs to destroy and recreate a new cluster.
+- It is possible to use a port forwarding service to access the application without serving it over http, however, I could not assess performances of this solution.
 - Kubeflow does not have a "DigitalOcean distribution" yet. A manifests repository is available and allows "1 command line" full installation, but documentation is not that clear and it can be challenging to reach operational status.
-- Terraform will not allow spinning up a kubernetes cluster pool on the most basic droplets
-- Jupyterhub notebooks request 1G of memory by default, so unless you selected a large RAM pool size, you need to specify lower memory requests and limits in the config.yaml for jupyterhub.
+- DOKS will not allow spinning up a kubernetes cluster pool on the most basic droplets, at least a configuraiton with 2GB ram is needed, some of the bigger droplet size also are not available (c2-2vcpu-4gb)
+- Jupyterhub notebooks request 1G of memory by default, so unless you selected a large RAM pool size, you need to specify lower memory requests and limits in the config.yaml for jupyterhub. By default, with 2GB ram nodes, if autoscale is not enabled, no server will spawn due to insufficuent memory.
 
 
 
-Open issues:
+### Open issues
+
 - Is port forwarding an acceptable option to access the tools in production for the use case?
-- Problems with mounting volumes on stop and restart of a jupyterhub server
+- When spawning a jupyterlab server, the corresponding pod is sometimes too long to come up, so the connection times out (but the server can quickly spawn shortly after, when the pod is still available)
+- After a cluster is destroyed, is it possible to reuse user authentication and persistent data with a new instance of the cluster? Would allow easier vertical scaling.
 
+### Next steps
 
-
-
----------
-
-## REBOOT - Automating GitOps and Continuous Delivery with DOKS based implementation
-
-### Prerequisites:
-- Create github repo
-- create clusters/dev folder
-- commit and push the readme
-- generate a token in github with repo access (Account settings > developer > token)
-- set up doctl with a digital ocean token (already done in starter)
-- Create a digital ocean Space
-- Generate a space access key from the API menu in digital ocean
-- Export the key and secret as environmental variables
-- install required tools (git, doctl, kubectl, flux, terraform, kubeseal)... all brew install(able)
-    - install flux: brew install fluxcd/tap/flux
-
-### Init Terraform Backend
-- create config/terraform/backend.tf (copy the template in DOKS starter kit 15>assets>terraform)
-- change the region in the digital ocean url; name; to reflect the one where the space was created
-- no need to change the "region" parameter
-- key: terraform.tfstate
-- Then get the main.tf file and populate it with your github, do parameters and cluster name and config (see slugs.do-api.dev)
-- in terraform directory, run terraform init  --backend-config="access_key=$DO_SPACES_ACCESS_KEY" --backend-config="secret_key=$DO_SPACES_SECRET_KEY"
-
-### bootstraping DOKS and flux cd
-- terraform plan -out starter_kit_flux_cluster.out
-- terraform apply "starter_kit_flux_cluster.out"
-- after the cluster is created, check the space contains the tfstate file
-- check access to cluster by running: doctl k8s clsuter list
-- savec kubecongig: doctl k8s cluster kubeconfig save curly-rotary-cluster
-- kubectl config get-contexts
-- kubectl get nodes
-- kubectl get pods -A
-- kubectl get ns
-- kubectl get all -n flux-system
-
-### Flux CD
-- flux check
-- flux get all
-- kubectl get gitrepositories.source.toolkit.fluxcd.io -n flux-system
-
-- pull the changes from terraform to your repo: git pull origin
-- create clusters/dev/helm/repositories, clusters/dev/helm/secrets and clusters/dev/flux-system/helm/releases
-- export FLUXCD_HELM_MANIFESTS_PATH="[...]/curly-rotary-phone/clusters/dev/helm"
-- run:
-
-flux create source helm sealed-secrets \
-  --url="https://bitnami-labs.github.io/sealed-secrets" \
-  --interval="10m" \
-  --export > "${FLUXCD_HELM_MANIFESTS_PATH}/repositories/sealed-secrets.yaml"
-
-- run:
-
-SEALED_SECRETS_CHART_VERSION="1.16.1"
-
-curl "https://raw.githubusercontent.com/digitalocean/Kubernetes-Starter-Kit-Developers/main/08-kubernetes-sealed-secrets/assets/manifests/sealed-secrets-values-v${SEALED_SECRETS_CHART_VERSION}.yaml" > "sealed-secrets-values-v${SEALED_SECRETS_CHART_VERSION}.yaml"
-
-- run:
-
-SEALED_SECRETS_CHART_VERSION="1.16.1"
-
-flux create helmrelease "sealed-secrets-controller" \
-  --release-name="sealed-secrets-controller" \
-  --source="HelmRepository/sealed-secrets" \
-  --chart="sealed-secrets" \
-  --chart-version "$SEALED_SECRETS_CHART_VERSION" \
-  --values="sealed-secrets-values-v${SEALED_SECRETS_CHART_VERSION}.yaml" \
-  --target-namespace="flux-system" \
-  --crds=CreateReplace \
-  --export > "${FLUXCD_HELM_MANIFESTS_PATH}/releases/sealed-secrets-v${SEALED_SECRETS_CHART_VERSION}.yaml"
-
-
-- commit the manifests
-- flux reconcile source git flux-system
-- flux get helmrelease sealed-secrets-controller
-
-
-
-----
-
-Utilities
-
-- kubctl deploy -f utils.yaml
-- kubectl exec utilities-..... -it -- /bin/sh
+- setup https
+- customize the jupyterlab image to make it smaller (starts up faster)
+- change the timeout value for the server spawning (could I set it in the helm chart?)
+- interface other microservices (data pipeline, serve the trained models, user apps...)
+- Put terraform backend on a Digital Ocean Space
+- Deploy a CI system that works with Jupyter Notebooks
