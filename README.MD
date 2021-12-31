@@ -1,4 +1,4 @@
-# Curly Rotary Phone - A ML System Experiment for the DigitalOcean Kubernetes Challenge 2021
+# Deep Neural Network Benchmarking with Jupyterlab on Kubernetes - A ML System Experiment for the DigitalOcean Kubernetes Challenge 2021
 
 ## Abstract
 
