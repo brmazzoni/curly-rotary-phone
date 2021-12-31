@@ -284,3 +284,9 @@ At this point I could not find an easy way to spin up jupyterlab servers, had so
 - interface other microservices (data pipeline, serve the trained models, user apps...)
 - Put terraform backend on a Digital Ocean Space
 - Deploy a CI system that works with Jupyter Notebooks
+
+## Acknowledgements
+
+Thanks for Digital Ocean team for organizing the Kubernetes Challenge and offering trial credit allowing us to tinker with DOKS.
+Thanks to Jupyterhub project. Jupyter notebooks are a wonderfull tool, but would be nothing without a great platform and community such as jupyterhub supporting it. I particulaly enjoyed how jupyterhub keeps it simple to deploy yet easy to customize.
+Thanks to the Prognostics CoE at NASA Ames for providing the turboprop engine degradation dataset used for this ML experiment.
