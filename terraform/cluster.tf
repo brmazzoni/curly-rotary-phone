@@ -25,7 +25,7 @@ resource "digitalocean_kubernetes_cluster" "curly-rotary-cluster" {
         size        = "s-2vcpu-2gb-amd"
         auto_scale  = true
         min_nodes   = 1
-        max_nodes   = 5
+        max_nodes   = 11
     }
 }
 

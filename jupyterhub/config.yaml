@@ -1,11 +1,9 @@
 singleuser:
   image:
-    # You should replace the "latest" tag with a fixed version from:
-    # https://hub.docker.com/r/jupyter/datascience-notebook/tags/
-    # Inspect the Dockerfile at:
-    # https://github.com/jupyter/docker-stacks/tree/HEAD/datascience-notebook/Dockerfile
+    # You should replace the image and the "latest" tag with a fixed version from:
+    # https://hub.docker.com/r/jupyter/
     name: jupyter/tensorflow-notebook
     tag: latest
   memory:
-    limit: 250M
-    guarantee: 200M
+    limit: 1.4G
+    guarantee: 1G
