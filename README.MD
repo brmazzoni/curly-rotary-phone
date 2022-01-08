@@ -11,6 +11,8 @@ Regarding CPU, AMD premium CPUs perform noticeably better than Intel ones for my
 
 ## Step-by-step description of the final setup:
 
+/!\ WARNING: this walkthrough does not describe how to secure the application. Without protecting it using a VPC/VPN or a stronger auth scheme, it is only a matter of days before someone will maliciously exploit the resources in your cluster.
+
 ### Prerequisites
 
 For this setup we use the following tools:
@@ -35,20 +37,27 @@ terraform init
 ```
 terraform plan -var do_token=$DO_TOKEN
 ```
+![terraform_plan](https://user-images.githubusercontent.com/92771598/148630518-03144103-6e6c-4ab0-802c-67e41b635058.png)
 ```
 terraform apply -var do_token=$DO_TOKEN
 ```
-- type yes to confirm
+- type yes to confirm, you will see some messages indicating the cluster is creating:
+![terraform_apply](https://user-images.githubusercontent.com/92771598/148630578-eb02f4d4-1411-4551-8af2-68b0f291f38f.png)
+
+
 - when the cluster is up, type the following command to enable kubectl:
 ```
 doctl kubernetes cluster kubeconfig save <your_cluster_id>
 ```
+![kubectl_config](https://user-images.githubusercontent.com/92771598/148630588-09ce46dc-3bce-426c-8469-64fcd1dee701.png)
 
 Check the installation:
 ```
 kubectl get nodes
 ```
 - you should see 1 pod running (or the minimum number you specified)
+![Screenshot 2022-01-08 at 11 45 27](https://user-images.githubusercontent.com/92771598/148630608-ea1b8a8c-a863-4a34-b78e-bda17ec2147e.png)
+
 ```
 kubectl get pods -A
 ```
@@ -117,16 +126,15 @@ kubectl get svc -n jhub
 ```
 - you should see a LoadBalancer service named "proxy-public", and a  EXTERNAL-IP listed. Copy the IP.
 - if the EXTERNAL-IP is <pending>, just wait a couple of minutes and try again... the service takes a little while to come up.
+![public_ip](https://user-images.githubusercontent.com/92771598/148630904-0c375876-0b29-4672-a4cf-713154222bc4.png)
 
 From a browser, access the IP and you should land on a connection page. 
 - At the moment, no user is created, but you just have to type a user name and a password to have one created. Jupyterhub will then "Spawn a server" (i.e. create a pod in the DOKS cluster from the image you selected in the jupyterhub release). This step may take up to 10 minutes, and may trigger autoscale (creation of a new node). 
 - The server spawning may fail, just click the jupyterhub logo to try again (and this time it should not fail anymore becasue the new node is ready)
 
 If the autoscale is triggered, you should see something like this in your browser:
-```
-trigger scale up:
-021-12-30T12:16:56Z [Normal] pod triggered scale-up: [{7333a9d6-8796-45e6-b96d-a5d6ec2a89fe 1->2 (max: 5)}]
-```
+![server_creation_triggered_autoscale](https://user-images.githubusercontent.com/92771598/148630935-30d652bb-2825-4a46-9558-1fa1738eedab.png)
+
 
 In the meantime, you could monitor your new pod coming up:
 ```
@@ -134,9 +142,7 @@ kubectl get po -n jhub
 ```
 
 You should see something like this:
-```
-jupyter-madscientist1             0/1     PodInitializing   0          3m44s
-```
+![spawn_pod](https://user-images.githubusercontent.com/92771598/148631006-78ce92ae-9737-4f02-ab89-b44bfa53f254.png)
 
 At any given moment, you can check if more nodes are created with:
 ```
@@ -149,6 +155,12 @@ kubectl get pods -n jhub
 ```
 
 After users log out, their server will automatically shut down (after a timeout), and eventually, the unused nodes will be automatically terminated (auto-downscale).
+The user data is kept in an automatically created DigitalOcean Volume. In order to view the existing volumes linked to the cluster you can use the following command:
+```
+kubectl get sc -n jhub
+```
+![volumes](https://user-images.githubusercontent.com/92771598/148631234-f2cf6b40-b4c0-4fbd-b216-fd93b28b07e3.png)
+
 
 ### Deploy the ML experiment
 
@@ -167,7 +179,9 @@ This notebook will just download a dataset from the NASA website and perform a f
 - Select Run > Run All Cells, or run the cells one by one (you could use Shift+Enter) to inspect the ouput of the ML workflow
 
 This second notebook will configure and train a Deep Neural Network and run train it to guess remaining useful life of some turbofan engines based on a series of sensor measurements (spoiler: as configured now, it doesn't work very well).
+![tensorflow_training](https://user-images.githubusercontent.com/92771598/148631167-8bca77cf-b4fd-40ac-adc2-5a91805fa94c.png)
 
+![training_metrics](https://user-images.githubusercontent.com/92771598/148631174-e44bf3a4-eec0-4e43-a946-458164491ff3.png)
 
 ### Mini-Benchmark
 
