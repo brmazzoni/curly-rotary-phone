@@ -37,11 +37,14 @@ terraform init
 ```
 terraform plan -var do_token=$DO_TOKEN
 ```
+
 ![terraform_plan](https://user-images.githubusercontent.com/92771598/148630518-03144103-6e6c-4ab0-802c-67e41b635058.png)
+
 ```
 terraform apply -var do_token=$DO_TOKEN
 ```
 - type yes to confirm, you will see some messages indicating the cluster is creating:
+
 ![terraform_apply](https://user-images.githubusercontent.com/92771598/148630578-eb02f4d4-1411-4551-8af2-68b0f291f38f.png)
 
 
@@ -49,6 +52,7 @@ terraform apply -var do_token=$DO_TOKEN
 ```
 doctl kubernetes cluster kubeconfig save <your_cluster_id>
 ```
+
 ![kubectl_config](https://user-images.githubusercontent.com/92771598/148630588-09ce46dc-3bce-426c-8469-64fcd1dee701.png)
 
 Check the installation:
@@ -56,6 +60,7 @@ Check the installation:
 kubectl get nodes
 ```
 - you should see 1 pod running (or the minimum number you specified)
+
 ![Screenshot 2022-01-08 at 11 45 27](https://user-images.githubusercontent.com/92771598/148630608-ea1b8a8c-a863-4a34-b78e-bda17ec2147e.png)
 
 ```
@@ -133,6 +138,7 @@ From a browser, access the IP and you should land on a connection page.
 - The server spawning may fail, just click the jupyterhub logo to try again (and this time it should not fail anymore becasue the new node is ready)
 
 If the autoscale is triggered, you should see something like this in your browser:
+  
 ![server_creation_triggered_autoscale](https://user-images.githubusercontent.com/92771598/148630935-30d652bb-2825-4a46-9558-1fa1738eedab.png)
 
 
@@ -142,6 +148,7 @@ kubectl get po -n jhub
 ```
 
 You should see something like this:
+  
 ![spawn_pod](https://user-images.githubusercontent.com/92771598/148631006-78ce92ae-9737-4f02-ab89-b44bfa53f254.png)
 
 At any given moment, you can check if more nodes are created with:
@@ -159,6 +166,7 @@ The user data is kept in an automatically created DigitalOcean Volume. In order 
 ```
 kubectl get sc -n jhub
 ```
+  
 ![volumes](https://user-images.githubusercontent.com/92771598/148631234-f2cf6b40-b4c0-4fbd-b216-fd93b28b07e3.png)
 
 
@@ -179,6 +187,7 @@ This notebook will just download a dataset from the NASA website and perform a f
 - Select Run > Run All Cells, or run the cells one by one (you could use Shift+Enter) to inspect the ouput of the ML workflow
 
 This second notebook will configure and train a Deep Neural Network and run train it to guess remaining useful life of some turbofan engines based on a series of sensor measurements (spoiler: as configured now, it doesn't work very well).
+  
 ![tensorflow_training](https://user-images.githubusercontent.com/92771598/148631167-8bca77cf-b4fd-40ac-adc2-5a91805fa94c.png)
 
 ![training_metrics](https://user-images.githubusercontent.com/92771598/148631174-e44bf3a4-eec0-4e43-a946-458164491ff3.png)
@@ -211,10 +220,12 @@ To reconfigure the performance specs for each user, open the config.yaml in jupy
 
 To have a global view of the performance, inspect the nodes running in your cluster using the following command:
 ```
-kubectl describe pod <pod-name>
+kubectl describe node <node-name>
 ```
 
 You will be able to consult a list of resources requests and limit and easily notice if the resources are overcommitted.
+  
+![perf](https://user-images.githubusercontent.com/92771598/148631453-31c0f315-6240-4635-b479-ba3d3d8cd6de.png)
 
 
 ## More about the kubernetes experience
